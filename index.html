@@ -1062,12 +1062,15 @@
 
                 if (this.selectedPiece) {
                     if (this.isValidMoveWithCheck(this.selectedPiece, x, y)) {
-                        this.makeMove(this.selectedPiece.x, this.selectedPiece.y, x, y);
+                        // 检查是否是连击技能
+                        const isDoubleMove = this.extraMove;
+
+                        this.makeMove(this.selectedPiece.x, this.selectedPiece.y, x, y, isDoubleMove);
                         this.selectedPiece = null;
                         this.draw();
 
                         // 检查是否是连击技能的额外移动
-                        if (this.extraMove && this.gameState === 'playing') {
+                        if (isDoubleMove && this.gameState === 'playing') {
                             this.extraMove = false;
                             this.showMessage('连击！请继续移动');
                             return;
@@ -1104,7 +1107,7 @@
                 return !CheckDetector.isInCheck(testBoard, piece.color);
             }
 
-            makeMove(fromX, fromY, toX, toY) {
+            makeMove(fromX, fromY, toX, toY, skipTurnSwitch = false) {
                 const piece = this.board.getPieceAt(fromX, fromY);
                 const captured = this.board.movePiece(fromX, fromY, toX, toY);
 
@@ -1116,7 +1119,12 @@
 
                 this.updateMoveHistory();
                 this.checkGameState();
-                this.currentPlayer = this.getOpponent();
+
+                // 只有在不跳过回合切换时才切换玩家
+                if (!skipTurnSwitch) {
+                    this.currentPlayer = this.getOpponent();
+                }
+
                 this.updateSkillButtons();
             }
 
