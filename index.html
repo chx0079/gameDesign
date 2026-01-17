@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国象棋 - 人机对战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #f5f5f5;
+            --board-bg: #fff8e1;
+            --line-color: #8d6e63;
+            --red-piece: #d32f2f;
+            --black-piece: #212121;
+            --highlight: rgba(76, 175, 80, 0.5);
+            --selected: rgba(33, 150, 243, 0.6);
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 32px;
+        }
+
+        #game-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            font-size: 18px;
+        }
+
+        #current-turn {
+            color: var(--red-piece);
+            font-weight: bold;
+        }
+
+        #game-status {
+            color: #666;
+        }
+
+        main {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        #board-container {
+            position: relative;
+            width: 540px;
+            height: 600px;
+            background: var(--board-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        #chess-board, #pieces-layer, #highlight-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+
+        #chess-board { z-index: 1; }
+        #highlight-layer { z-index: 2; }
+        #pieces-layer { z-index: 3; cursor: pointer; }
+
+        #control-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 300px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .panel-section {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .panel-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 6px;
+            background: #1976d2;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #1565c0;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+
+        #move-history {
+            max-height: 250px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .move-record {
+            padding: 5px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .move-record:hover {
+            background: #e3f2fd;
+        }
+
+        .move-record:last-child {
+            border-bottom: none;
+        }
+
+        #message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 12px;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            z-index: 1000;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            #board-container {
+                width: 450px;
+                height: 500px;
+            }
+
+            #control-panel {
+                width: 100%;
+                max-width: 450px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            #board-container {
+                width: 360px;
+                height: 400px;
+            }
+
+            #control-panel {
+                width: 100%;
+                max-width: 360px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            #game-info {
+                flex-direction: column;
+                gap: 10px;
+                font-size: 16px;
+            }
+
+            body {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <header>
+            <h1>中国象棋</h1>
+            <div id="game-info">
+                <span id="current-turn">红方走棋</span>
+                <span id="game-status">游戏进行中</span>
+            </div>
+        </header>
+
+        <main>
+            <div id="board-container">
+                <canvas id="chess-board"></canvas>
+                <canvas id="pieces-layer"></canvas>
+                <canvas id="highlight-layer"></canvas>
+            </div>
+
+            <aside id="control-panel">
+                <div class="panel-section">
+                    <h3>游戏控制</h3>
+                    <button id="btn-restart">重新开始</button>
+                    <button id="btn-undo">悔棋</button>
+                </div>
+
+                <div class="panel-section">
+                    <h3>难度设置</h3>
+                    <select id="difficulty">
+                        <option value="1">简单</option>
+                        <option value="2" selected>中等</option>
+                        <option value="3">困难</option>
+                    </select>
+                </div>
+
+                <div class="panel-section">
+                    <h3>棋谱记录</h3>
+                    <div id="move-history"></div>
+                </div>
+            </aside>
+        </main>
+
+        <div id="message-box"></div>
+    </div>
+
+    <script>
+        // 棋子类型枚举
+        const PieceType = {
+            KING: 'king',
+            ADVISOR: 'advisor',
+            ELEPHANT: 'elephant',
+            HORSE: 'horse',
+            CHARIOT: 'chariot',
+            CANNON: 'cannon',
+            SOLDIER: 'soldier'
+        };
+
+        // 棋子颜色
+        const PieceColor = {
+            RED: 'red',
+            BLACK: 'black'
+        };
+
+        // 棋子类
+        class Piece {
+            constructor(type, color, x, y) {
+                this.type = type;
+                this.color = color;
+                this.x = x;
+                this.y = y;
+            }
+
+            getName() {
+                const names = {
+                    [PieceColor.RED]: {
+                        king: '帅', advisor: '仕', elephant: '相',
+                        horse: '马', chariot: '车', cannon: '炮', soldier: '兵'
+                    },
+                    [PieceColor.BLACK]: {
+                        king: '将', advisor: '士', elephant: '象',
+                        horse: '马', chariot: '车', cannon: '炮', soldier: '卒'
+                    }
+                };
+                return names[this.color][this.type];
+            }
+
+            clone() {
+                return new Piece(this.type, this.color, this.x, this.y);
+            }
+        }
+
+        // 棋盘类
+        class ChessBoard {
+            constructor() {
+                this.width = 9;
+                this.height = 10;
+                this.pieces = [];
+                this.initializeBoard();
+            }
+
+            initializeBoard() {
+                this.pieces = [];
+
+                // 黑方棋子 (y=0到4)
+                this.addPiece(PieceType.CHARIOT, PieceColor.BLACK, 0, 0);
+                this.addPiece(PieceType.HORSE, PieceColor.BLACK, 1, 0);
+                this.addPiece(PieceType.ELEPHANT, PieceColor.BLACK, 2, 0);
+                this.addPiece(PieceType.ADVISOR, PieceColor.BLACK, 3, 0);
+                this.addPiece(PieceType.KING, PieceColor.BLACK, 4, 0);
+                this.addPiece(PieceType.ADVISOR, PieceColor.BLACK, 5, 0);
+                this.addPiece(PieceType.ELEPHANT, PieceColor.BLACK, 6, 0);
+                this.addPiece(PieceType.HORSE, PieceColor.BLACK, 7, 0);
+                this.addPiece(PieceType.CHARIOT, PieceColor.BLACK, 8, 0);
+                this.addPiece(PieceType.CANNON, PieceColor.BLACK, 1, 2);
+                this.addPiece(PieceType.CANNON, PieceColor.BLACK, 7, 2);
+                for (let i = 0; i < 5; i++) {
+                    this.addPiece(PieceType.SOLDIER, PieceColor.BLACK, i * 2, 3);
+                }
+
+                // 红方棋子 (y=5到9)
+                this.addPiece(PieceType.CHARIOT, PieceColor.RED, 0, 9);
+                this.addPiece(PieceType.HORSE, PieceColor.RED, 1, 9);
+                this.addPiece(PieceType.ELEPHANT, PieceColor.RED, 2, 9);
+                this.addPiece(PieceType.ADVISOR, PieceColor.RED, 3, 9);
+                this.addPiece(PieceType.KING, PieceColor.RED, 4, 9);
+                this.addPiece(PieceType.ADVISOR, PieceColor.RED, 5, 9);
+                this.addPiece(PieceType.ELEPHANT, PieceColor.RED, 6, 9);
+                this.addPiece(PieceType.HORSE, PieceColor.RED, 7, 9);
+                this.addPiece(PieceType.CHARIOT, PieceColor.RED, 8, 9);
+                this.addPiece(PieceType.CANNON, PieceColor.RED, 1, 7);
+                this.addPiece(PieceType.CANNON, PieceColor.RED, 7, 7);
+                for (let i = 0; i < 5; i++) {
+                    this.addPiece(PieceType.SOLDIER, PieceColor.RED, i * 2, 6);
+                }
+            }
+
+            addPiece(type, color, x, y) {
+                this.pieces.push(new Piece(type, color, x, y));
+            }
+
+            getPieceAt(x, y) {
+                return this.pieces.find(p => p.x === x && p.y === y) || null;
+            }
+
+            removePiece(x, y) {
+                const index = this.pieces.findIndex(p => p.x === x && p.y === y);
+                if (index !== -1) {
+                    this.pieces.splice(index, 1);
+                }
+            }
+
+            movePiece(fromX, fromY, toX, toY) {
+                const piece = this.getPieceAt(fromX, fromY);
+                if (piece) {
+                    const captured = this.getPieceAt(toX, toY);
+                    this.removePiece(toX, toY);
+                    piece.x = toX;
+                    piece.y = toY;
+                    return captured;
+                }
+                return null;
+            }
+
+            clone() {
+                const newBoard = new ChessBoard();
+                newBoard.pieces = this.pieces.map(p => p.clone());
+                return newBoard;
+            }
+        }
+
+        // 移动规则验证器
+        class MoveValidator {
+            static isValidMove(board, piece, toX, toY) {
+                if (toX < 0 || toX > 8 || toY < 0 || toY > 9) {
+                    return false;
+                }
+
+                const targetPiece = board.getPieceAt(toX, toY);
+                if (targetPiece && targetPiece.color === piece.color) {
+                    return false;
+                }
+
+                switch (piece.type) {
+                    case PieceType.KING:
+                        return this.validateKingMove(board, piece, toX, toY);
+                    case PieceType.ADVISOR:
+                        return this.validateAdvisorMove(piece, toX, toY);
+                    case PieceType.ELEPHANT:
+                        return this.validateElephantMove(board, piece, toX, toY);
+                    case PieceType.HORSE:
+                        return this.validateHorseMove(board, piece, toX, toY);
+                    case PieceType.CHARIOT:
+                        return this.validateChariotMove(board, piece, toX, toY);
+                    case PieceType.CANNON:
+                        return this.validateCannonMove(board, piece, toX, toY);
+                    case PieceType.SOLDIER:
+                        return this.validateSoldierMove(piece, toX, toY);
+                    default:
+                        return false;
+                }
+            }
+
+            static validateKingMove(board, piece, toX, toY) {
+                const dx = Math.abs(toX - piece.x);
+                const dy = Math.abs(toY - piece.y);
+
+                if (dx + dy !== 1) {
+                    return false;
+                }
+
+                if (piece.color === PieceColor.RED) {
+                    return toX >= 3 && toX <= 5 && toY >= 7 && toY <= 9;
+                } else {
+                    return toX >= 3 && toX <= 5 && toY >= 0 && toY <= 2;
+                }
+            }
+
+            static validateAdvisorMove(piece, toX, toY) {
+                const dx = Math.abs(toX - piece.x);
+                const dy = Math.abs(toY - piece.y);
+
+                if (dx !== 1 || dy !== 1) {
+                    return false;
+                }
+
+                if (piece.color === PieceColor.RED) {
+                    return toX >= 3 && toX <= 5 && toY >= 7 && toY <= 9;
+                } else {
+                    return toX >= 3 && toX <= 5 && toY >= 0 && toY <= 2;
+                }
+            }
+
+            static validateElephantMove(board, piece, toX, toY) {
+                const dx = Math.abs(toX - piece.x);
+                const dy = Math.abs(toY - piece.y);
+
+                if (dx !== 2 || dy !== 2) {
+                    return false;
+                }
+
+                if (piece.color === PieceColor.RED && toY < 5) {
+                    return false;
+                }
+                if (piece.color === PieceColor.BLACK && toY > 4) {
+                    return false;
+                }
+
+                const eyeX = (piece.x + toX) / 2;
+                const eyeY = (piece.y + toY) / 2;
+                if (board.getPieceAt(eyeX, eyeY)) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            static validateHorseMove(board, piece, toX, toY) {
+                const dx = Math.abs(toX - piece.x);
+                const dy = Math.abs(toY - piece.y);
+
+                if (!((dx === 1 && dy === 2) || (dx === 2 && dy === 1))) {
+                    return false;
+                }
+
+                let legX = piece.x;
+                let legY = piece.y;
+
+                if (dx === 2) {
+                    legX = piece.x + (toX - piece.x) / 2;
+                } else {
+                    legY = piece.y + (toY - piece.y) / 2;
+                }
+
+                if (board.getPieceAt(legX, legY)) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            static validateChariotMove(board, piece, toX, toY) {
+                if (piece.x !== toX && piece.y !== toY) {
+                    return false;
+                }
+
+                return this.countPiecesBetween(board, piece.x, piece.y, toX, toY) === 0;
+            }
+
+            static validateCannonMove(board, piece, toX, toY) {
+                if (piece.x !== toX && piece.y !== toY) {
+                    return false;
+                }
+
+                const targetPiece = board.getPieceAt(toX, toY);
+                const piecesBetween = this.countPiecesBetween(board, piece.x, piece.y, toX, toY);
+
+                if (!targetPiece) {
+                    return piecesBetween === 0;
+                }
+
+                return piecesBetween === 1;
+            }
+
+            static validateSoldierMove(piece, toX, toY) {
+                const dx = Math.abs(toX - piece.x);
+                const dy = Math.abs(toY - piece.y);
+
+                if (dx + dy !== 1) {
+                    return false;
+                }
+
+                if (piece.color === PieceColor.RED) {
+                    if (piece.y > 4) {
+                        return toY === piece.y - 1 && toX === piece.x;
+                    }
+                    return toY <= piece.y && dy <= 1;
+                }
+
+                if (piece.y < 5) {
+                    return toY === piece.y + 1 && toX === piece.x;
+                }
+                return toY >= piece.y && dy <= 1;
+            }
+
+            static countPiecesBetween(board, x1, y1, x2, y2) {
+                let count = 0;
+
+                if (x1 === x2) {
+                    const minY = Math.min(y1, y2);
+                    const maxY = Math.max(y1, y2);
+                    for (let y = minY + 1; y < maxY; y++) {
+                        if (board.getPieceAt(x1, y)) {
+                            count++;
+                        }
+                    }
+                } else if (y1 === y2) {
+                    const minX = Math.min(x1, x2);
+                    const maxX = Math.max(x1, x2);
+                    for (let x = minX + 1; x < maxX; x++) {
+                        if (board.getPieceAt(x, y1)) {
+                            count++;
+                        }
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        // 将军检测器
+        class CheckDetector {
+            static isInCheck(board, color) {
+                const king = board.pieces.find(
+                    p => p.type === PieceType.KING && p.color === color
+                );
+
+                if (!king) {
+                    return false;
+                }
+
+                const enemyColor = color === PieceColor.RED ? PieceColor.BLACK : PieceColor.RED;
+                const enemyPieces = board.pieces.filter(p => p.color === enemyColor);
+
+                for (const piece of enemyPieces) {
+                    if (MoveValidator.isValidMove(board, piece, king.x, king.y)) {
+                        return true;
+                    }
+                }
+
+                const enemyKing = board.pieces.find(
+                    p => p.type === PieceType.KING && p.color === enemyColor
+                );
+
+                if (enemyKing && king.x === enemyKing.x) {
+                    const piecesBetween = MoveValidator.countPiecesBetween(
+                        board, king.x, king.y, enemyKing.x, enemyKing.y
+                    );
+                    if (piecesBetween === 0) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            static isCheckmate(board, color) {
+                if (!this.isInCheck(board, color)) {
+                    return false;
+                }
+
+                const pieces = board.pieces.filter(p => p.color === color);
+
+                for (const piece of pieces) {
+                    for (let toX = 0; toX < 9; toX++) {
+                        for (let toY = 0; toY < 10; toY++) {
+                            const testBoard = board.clone();
+                            const testPiece = testBoard.getPieceAt(piece.x, piece.y);
+
+                            if (testPiece && MoveValidator.isValidMove(testBoard, testPiece, toX, toY)) {
+                                testBoard.movePiece(piece.x, piece.y, toX, toY);
+
+                                if (!this.isInCheck(testBoard, color)) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+            static isStalemate(board, color) {
+                if (this.isInCheck(board, color)) {
+                    return false;
+                }
+
+                const pieces = board.pieces.filter(p => p.color === color);
+
+                for (const piece of pieces) {
+                    for (let toX = 0; toX < 9; toX++) {
+                        for (let toY = 0; toY < 10; toY++) {
+                            if (MoveValidator.isValidMove(board, piece, toX, toY)) {
+                                const testBoard = board.clone();
+                                testBoard.movePiece(piece.x, piece.y, toX, toY);
+
+                                if (!this.isInCheck(testBoard, color)) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        // AI引擎
+        class AIEngine {
+            constructor(color, difficulty = 2) {
+                this.color = color;
+                this.difficulty = difficulty;
+                this.maxDepth = difficulty + 1;
+            }
+
+            getBestMove(board) {
+                const [move] = this.minimax(
+                    board,
+                    this.maxDepth,
+                    -Infinity,
+                    Infinity,
+                    true
+                );
+
+                return move;
+            }
+
+            minimax(board, depth, alpha, beta, isMaximizing) {
+                if (CheckDetector.isCheckmate(board, PieceColor.RED)) {
+                    return [null, this.color === PieceColor.RED ? -10000 : 10000];
+                }
+                if (CheckDetector.isCheckmate(board, PieceColor.BLACK)) {
+                    return [null, this.color === PieceColor.BLACK ? -10000 : 10000];
+                }
+
+                if (depth === 0) {
+                    return [null, this.evaluateBoard(board)];
+                }
+
+                const moves = this.getAllPossibleMoves(
+                    board,
+                    isMaximizing ? this.color : this.getOpponentColor()
+                );
+
+                if (moves.length === 0) {
+                    return [null, 0];
+                }
+
+                moves.sort((a, b) => {
+                    const captureA = board.getPieceAt(a.toX, a.toY);
+                    const captureB = board.getPieceAt(b.toX, b.toY);
+                    const valueA = captureA ? this.getPieceValue(captureA.type) : 0;
+                    const valueB = captureB ? this.getPieceValue(captureB.type) : 0;
+                    return valueB - valueA;
+                });
+
+                let bestMove = null;
+
+                if (isMaximizing) {
+                    let maxScore = -Infinity;
+
+                    for (const move of moves) {
+                        const newBoard = board.clone();
+                        newBoard.movePiece(move.fromX, move.fromY, move.toX, move.toY);
+
+                        const [, score] = this.minimax(newBoard, depth - 1, alpha, beta, false);
+
+                        if (score > maxScore) {
+                            maxScore = score;
+                            bestMove = move;
+                        }
+
+                        alpha = Math.max(alpha, score);
+                        if (beta <= alpha) {
+                            break;
+                        }
+                    }
+
+                    return [bestMove, maxScore];
+                } else {
+                    let minScore = Infinity;
+
+                    for (const move of moves) {
+                        const newBoard = board.clone();
+                        newBoard.movePiece(move.fromX, move.fromY, move.toX, move.toY);
+
+                        const [, score] = this.minimax(newBoard, depth - 1, alpha, beta, true);
+
+                        if (score < minScore) {
+                            minScore = score;
+                            bestMove = move;
+                        }
+
+                        beta = Math.min(beta, score);
+                        if (beta <= alpha) {
+                            break;
+                        }
+                    }
+
+                    return [bestMove, minScore];
+                }
+            }
+
+            evaluateBoard(board) {
+                let score = 0;
+
+                for (const piece of board.pieces) {
+                    const value = this.getPieceValue(piece.type);
+                    const positionBonus = this.getPositionBonus(piece);
+
+                    if (piece.color === this.color) {
+                        score += value + positionBonus;
+                    } else {
+                        score -= value + positionBonus;
+                    }
+                }
+
+                if (CheckDetector.isInCheck(board, this.getOpponentColor())) {
+                    score += 50;
+                }
+                if (CheckDetector.isInCheck(board, this.color)) {
+                    score -= 50;
+                }
+
+                return score;
+            }
+
+            getPieceValue(type) {
+                const values = {
+                    [PieceType.KING]: 10000,
+                    [PieceType.CHARIOT]: 900,
+                    [PieceType.HORSE]: 400,
+                    [PieceType.CANNON]: 450,
+                    [PieceType.ADVISOR]: 200,
+                    [PieceType.ELEPHANT]: 200,
+                    [PieceType.SOLDIER]: 100
+                };
+                return values[type] || 0;
+            }
+
+            getPositionBonus(piece) {
+                if (piece.type === PieceType.SOLDIER) {
+                    if (piece.color === PieceColor.RED && piece.y < 5) {
+                        return 50;
+                    }
+                    if (piece.color === PieceColor.BLACK && piece.y > 4) {
+                        return 50;
+                    }
+                }
+
+                if (piece.x >= 3 && piece.x <= 5) {
+                    return 10;
+                }
+
+                return 0;
+            }
+
+            getAllPossibleMoves(board, color) {
+                const moves = [];
+                const pieces = board.pieces.filter(p => p.color === color);
+
+                for (const piece of pieces) {
+                    for (let toX = 0; toX < 9; toX++) {
+                        for (let toY = 0; toY < 10; toY++) {
+                            if (MoveValidator.isValidMove(board, piece, toX, toY)) {
+                                const testBoard = board.clone();
+                                testBoard.movePiece(piece.x, piece.y, toX, toY);
+
+                                if (!CheckDetector.isInCheck(testBoard, color)) {
+                                    moves.push({
+                                        fromX: piece.x,
+                                        fromY: piece.y,
+                                        toX: toX,
+                                        toY: toY
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return moves;
+            }
+
+            getOpponentColor() {
+                return this.color === PieceColor.RED ? PieceColor.BLACK : PieceColor.RED;
+            }
+        }
+
+        // 游戏控制器
+        class GameController {
+            constructor() {
+                this.board = new ChessBoard();
+                this.currentPlayer = PieceColor.RED;
+                this.gameState = 'playing';
+                this.moveHistory = [];
+                this.ai = new AIEngine(PieceColor.BLACK, 2);
+                this.selectedPiece = null;
+                this.isAIThinking = false;
+
+                this.initializeCanvas();
+                this.bindEvents();
+                this.draw();
+            }
+
+            initializeCanvas() {
+                this.boardCanvas = document.getElementById('chess-board');
+                this.piecesCanvas = document.getElementById('pieces-layer');
+                this.highlightCanvas = document.getElementById('highlight-layer');
+
+                this.boardCtx = this.boardCanvas.getContext('2d');
+                this.piecesCtx = this.piecesCanvas.getContext('2d');
+                this.highlightCtx = this.highlightCanvas.getContext('2d');
+
+                const container = document.getElementById('board-container');
+                const size = Math.min(container.clientWidth, 540);
+
+                [this.boardCanvas, this.piecesCanvas, this.highlightCanvas].forEach(canvas => {
+                    canvas.width = size;
+                    canvas.height = size * 10 / 9;
+                });
+
+                this.cellSize = this.boardCanvas.width / 9;
+            }
+
+            bindEvents() {
+                this.piecesCanvas.addEventListener('click', (e) => this.handleClick(e));
+                document.getElementById('btn-restart').addEventListener('click', () => this.restart());
+                document.getElementById('btn-undo').addEventListener('click', () => this.undo());
+                document.getElementById('difficulty').addEventListener('change', (e) => {
+                    this.ai.difficulty = parseInt(e.target.value);
+                    this.ai.maxDepth = this.ai.difficulty + 1;
+                });
+
+                window.addEventListener('resize', () => {
+                    this.initializeCanvas();
+                    this.draw();
+                });
+            }
+
+            handleClick(e) {
+                if (this.gameState !== 'playing' || this.isAIThinking) {
+                    return;
+                }
+
+                if (this.currentPlayer !== PieceColor.RED) {
+                    return;
+                }
+
+                const rect = this.piecesCanvas.getBoundingClientRect();
+                const scaleX = this.piecesCanvas.width / rect.width;
+                const scaleY = this.piecesCanvas.height / rect.height;
+                const x = Math.floor((e.clientX - rect.left) * scaleX / this.cellSize);
+                const y = Math.floor((e.clientY - rect.top) * scaleY / this.cellSize);
+
+                this.handleCellClick(x, y);
+            }
+
+            handleCellClick(x, y) {
+                if (x < 0 || x > 8 || y < 0 || y > 9) {
+                    return;
+                }
+
+                const clickedPiece = this.board.getPieceAt(x, y);
+
+                if (this.selectedPiece) {
+                    if (this.isValidMoveWithCheck(this.selectedPiece, x, y)) {
+                        this.makeMove(this.selectedPiece.x, this.selectedPiece.y, x, y);
+                        this.selectedPiece = null;
+                        this.draw();
+
+                        if (this.gameState === 'playing') {
+                            this.isAIThinking = true;
+                            this.updateStatus();
+                            setTimeout(() => this.makeAIMove(), 100);
+                        }
+                    } else if (clickedPiece && clickedPiece.color === this.currentPlayer) {
+                        this.selectedPiece = clickedPiece;
+                        this.draw();
+                    } else {
+                        this.selectedPiece = null;
+                        this.draw();
+                    }
+                } else {
+                    if (clickedPiece && clickedPiece.color === this.currentPlayer) {
+                        this.selectedPiece = clickedPiece;
+                        this.draw();
+                    }
+                }
+            }
+
+            isValidMoveWithCheck(piece, toX, toY) {
+                if (!MoveValidator.isValidMove(this.board, piece, toX, toY)) {
+                    return false;
+                }
+
+                const testBoard = this.board.clone();
+                testBoard.movePiece(piece.x, piece.y, toX, toY);
+
+                return !CheckDetector.isInCheck(testBoard, piece.color);
+            }
+
+            makeMove(fromX, fromY, toX, toY) {
+                const piece = this.board.getPieceAt(fromX, fromY);
+                const captured = this.board.movePiece(fromX, fromY, toX, toY);
+
+                this.moveHistory.push({
+                    piece: piece.clone(),
+                    fromX, fromY, toX, toY,
+                    captured: captured ? captured.clone() : null
+                });
+
+                this.updateMoveHistory();
+                this.checkGameState();
+                this.currentPlayer = this.getOpponent();
+            }
+
+            makeAIMove() {
+                const move = this.ai.getBestMove(this.board);
+
+                if (move) {
+                    this.makeMove(move.fromX, move.fromY, move.toX, move.toY);
+                }
+
+                this.isAIThinking = false;
+                this.updateStatus();
+                this.draw();
+            }
+
+            checkGameState() {
+                const opponent = this.getOpponent();
+
+                if (CheckDetector.isCheckmate(this.board, opponent)) {
+                    this.gameState = this.currentPlayer === PieceColor.RED ? 'red_win' : 'black_win';
+                    this.showMessage(`${this.currentPlayer === PieceColor.RED ? '红方' : '黑方'}获胜！`);
+                } else if (CheckDetector.isInCheck(this.board, opponent)) {
+                    this.showMessage('将军！');
+                } else if (CheckDetector.isStalemate(this.board, opponent)) {
+                    this.gameState = this.currentPlayer === PieceColor.RED ? 'red_win' : 'black_win';
+                    this.showMessage('困毙，无子可动！');
+                }
+
+                this.updateStatus();
+            }
+
+            undo() {
+                if (this.moveHistory.length < 2 || this.isAIThinking) {
+                    return;
+                }
+
+                for (let i = 0; i < 2; i++) {
+                    const lastMove = this.moveHistory.pop();
+                    if (lastMove) {
+                        if (lastMove.captured) {
+                            this.board.pieces.push(lastMove.captured);
+                        }
+                        const piece = this.board.getPieceAt(lastMove.toX, lastMove.toY);
+                        if (piece) {
+                            piece.x = lastMove.fromX;
+                            piece.y = lastMove.fromY;
+                        }
+                    }
+                }
+
+                this.currentPlayer = PieceColor.RED;
+                this.gameState = 'playing';
+                this.selectedPiece = null;
+                this.draw();
+                this.updateStatus();
+                this.updateMoveHistory();
+            }
+
+            restart() {
+                this.board = new ChessBoard();
+                this.currentPlayer = PieceColor.RED;
+                this.gameState = 'playing';
+                this.moveHistory = [];
+                this.selectedPiece = null;
+                this.isAIThinking = false;
+                this.draw();
+                this.updateStatus();
+                this.updateMoveHistory();
+            }
+
+            draw() {
+                this.drawBoard();
+                this.drawPieces();
+                this.drawHighlights();
+            }
+
+            drawBoard() {
+                const ctx = this.boardCtx;
+                const size = this.cellSize;
+
+                ctx.clearRect(0, 0, this.boardCanvas.width, this.boardCanvas.height);
+
+                ctx.fillStyle = '#fff8e1';
+                ctx.fillRect(0, 0, this.boardCanvas.width, this.boardCanvas.height);
+
+                ctx.strokeStyle = '#8d6e63';
+                ctx.lineWidth = 2;
+
+                for (let y = 0; y < 10; y++) {
+                    ctx.beginPath();
+                    ctx.moveTo(size / 2, size / 2 + y * size);
+                    ctx.lineTo(this.boardCanvas.width - size / 2, size / 2 + y * size);
+                    ctx.stroke();
+                }
+
+                for (let x = 0; x < 9; x++) {
+                    ctx.beginPath();
+                    ctx.moveTo(size / 2 + x * size, size / 2);
+                    ctx.lineTo(size / 2 + x * size, size / 2 + 4 * size);
+                    ctx.stroke();
+                }
+
+                for (let x = 0; x < 9; x++) {
+                    ctx.beginPath();
+                    ctx.moveTo(size / 2 + x * size, size / 2 + 5 * size);
+                    ctx.lineTo(size / 2 + x * size, size / 2 + 9 * size);
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.moveTo(size / 2, size / 2 + 4 * size);
+                ctx.lineTo(size / 2, size / 2 + 5 * size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(this.boardCanvas.width - size / 2, size / 2 + 4 * size);
+                ctx.lineTo(this.boardCanvas.width - size / 2, size / 2 + 5 * size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(size / 2 + 3 * size, size / 2);
+                ctx.lineTo(size / 2 + 5 * size, size / 2 + 2 * size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(size / 2 + 5 * size, size / 2);
+                ctx.lineTo(size / 2 + 3 * size, size / 2 + 2 * size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(size / 2 + 3 * size, size / 2 + 7 * size);
+                ctx.lineTo(size / 2 + 5 * size, size / 2 + 9 * size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(size / 2 + 5 * size, size / 2 + 7 * size);
+                ctx.lineTo(size / 2 + 3 * size, size / 2 + 9 * size);
+                ctx.stroke();
+
+                ctx.font = `bold ${size * 0.6}px "STKaiti", "KaiTi", serif`;
+                ctx.fillStyle = '#8d6e63';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                ctx.save();
+                ctx.translate(size * 2, size * 4.5);
+                ctx.fillText('楚河', 0, 0);
+                ctx.restore();
+
+                ctx.save();
+                ctx.translate(size * 6, size * 4.5);
+                ctx.rotate(Math.PI);
+                ctx.fillText('汉界', 0, 0);
+                ctx.restore();
+            }
+
+            drawPieces() {
+                const ctx = this.piecesCtx;
+                ctx.clearRect(0, 0, this.piecesCanvas.width, this.piecesCanvas.height);
+
+                for (const piece of this.board.pieces) {
+                    const x = this.cellSize / 2 + piece.x * this.cellSize;
+                    const y = this.cellSize / 2 + piece.y * this.cellSize;
+                    const radius = this.cellSize * 0.4;
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();
+                    ctx.strokeStyle = piece.color === PieceColor.RED ? '#d32f2f' : '#212121';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    ctx.font = `bold ${radius * 1.2}px "STKaiti", "KaiTi", serif`;
+                    ctx.fillStyle = piece.color === PieceColor.RED ? '#d32f2f' : '#212121';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(piece.getName(), x, y);
+                }
+            }
+
+            drawHighlights() {
+                const ctx = this.highlightCtx;
+                ctx.clearRect(0, 0, this.highlightCanvas.width, this.highlightCanvas.height);
+
+                if (!this.selectedPiece) {
+                    return;
+                }
+
+                const x = this.cellSize / 2 + this.selectedPiece.x * this.cellSize;
+                const y = this.cellSize / 2 + this.selectedPiece.y * this.cellSize;
+                const radius = this.cellSize * 0.45;
+
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(33, 150, 243, 0.3)';
+                ctx.fill();
+
+                for (let toX = 0; toX < 9; toX++) {
+                    for (let toY = 0; toY < 10; toY++) {
+                        if (this.isValidMoveWithCheck(this.selectedPiece, toX, toY)) {
+                            const markX = this.cellSize / 2 + toX * this.cellSize;
+                            const markY = this.cellSize / 2 + toY * this.cellSize;
+
+                            ctx.beginPath();
+                            ctx.arc(markX, markY, this.cellSize * 0.15, 0, Math.PI * 2);
+                            ctx.fillStyle = 'rgba(76, 175, 80, 0.6)';
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+
+            updateMoveHistory() {
+                const historyDiv = document.getElementById('move-history');
+                historyDiv.innerHTML = '';
+
+                this.moveHistory.forEach((move, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'move-record';
+                    const moveNum = Math.floor(index / 2) + 1;
+                    const color = move.piece.color === PieceColor.RED ? '红' : '黑';
+                    div.textContent = `${moveNum}. ${color} ${move.piece.getName()} (${move.fromX},${move.fromY}) → (${move.toX},${move.toY})`;
+                    historyDiv.appendChild(div);
+                });
+
+                historyDiv.scrollTop = historyDiv.scrollHeight;
+            }
+
+            updateStatus() {
+                const turnSpan = document.getElementById('current-turn');
+                const statusSpan = document.getElementById('game-status');
+
+                if (this.gameState === 'playing') {
+                    turnSpan.textContent = this.currentPlayer === PieceColor.RED ? '红方走棋' : '黑方思考中...';
+                    statusSpan.textContent = '游戏进行中';
+                } else {
+                    turnSpan.textContent = '游戏结束';
+                    statusSpan.textContent = this.gameState === 'red_win' ? '红方获胜' : '黑方获胜';
+                }
+            }
+
+            showMessage(message) {
+                const messageBox = document.getElementById('message-box');
+                messageBox.textContent = message;
+                messageBox.style.display = 'block';
+
+                setTimeout(() => {
+                    messageBox.style.display = 'none';
+                }, 2000);
+            }
+
+            getOpponent() {
+                return this.currentPlayer === PieceColor.RED ? PieceColor.BLACK : PieceColor.RED;
+            }
+        }
+
+        // 游戏初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            new GameController();
+        });
+    </script>
+</body>
+</html>
