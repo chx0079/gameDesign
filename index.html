@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中国象棋 - 人机对战</title>
+    <title>中国象棋 - 技能版</title>
     <style>
         * {
             margin: 0;
@@ -69,6 +69,30 @@
             color: #666;
         }
 
+        .energy-display {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+
+        .energy-info {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+
+        .red-energy {
+            background: #ffebee;
+            color: var(--red-piece);
+        }
+
+        .black-energy {
+            background: #f5f5f5;
+            color: var(--black-piece);
+        }
+
         main {
             display: flex;
             gap: 30px;
@@ -97,6 +121,52 @@
         #chess-board { z-index: 1; }
         #highlight-layer { z-index: 2; }
         #pieces-layer { z-index: 3; cursor: pointer; }
+
+        .skill-button {
+            width: 100%;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .skill-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .skill-button:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .skill-button.active {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .skill-cost {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
 
         #control-panel {
             background: white;
@@ -249,10 +319,14 @@
 <body>
     <div id="game-container">
         <header>
-            <h1>中国象棋</h1>
+            <h1>中国象棋 - 技能版</h1>
             <div id="game-info">
                 <span id="current-turn">红方走棋</span>
                 <span id="game-status">游戏进行中</span>
+            </div>
+            <div class="energy-display">
+                <span class="energy-info red-energy">红方能量: <span id="red-energy">3</span></span>
+                <span class="energy-info black-energy">黑方能量: <span id="black-energy">3</span></span>
             </div>
         </header>
 
@@ -264,6 +338,18 @@
             </div>
 
             <aside id="control-panel">
+                <div class="panel-section">
+                    <h3>技能</h3>
+                    <button id="skill-doublemove" class="skill-button">
+                        连击
+                        <span class="skill-cost">⚡2</span>
+                    </button>
+                    <button id="skill-swap" class="skill-button">
+                        换位
+                        <span class="skill-cost">⚡3</span>
+                    </button>
+                </div>
+
                 <div class="panel-section">
                     <h3>游戏控制</h3>
                     <button id="btn-restart">重新开始</button>
@@ -875,9 +961,21 @@
                 this.selectedPiece = null;
                 this.isAIThinking = false;
 
+                // 技能系统
+                this.energy = {
+                    [PieceColor.RED]: 3,
+                    [PieceColor.BLACK]: 3
+                };
+                this.activeSkill = null; // 当前激活的技能
+                this.swapMode = false; // 换位模式
+                this.swapFirstPiece = null; // 换位第一个棋子
+                this.extraMove = false; // 连击额外移动
+
                 this.initializeCanvas();
                 this.bindEvents();
                 this.draw();
+                this.updateEnergyDisplay();
+                this.updateSkillButtons();
             }
 
             initializeCanvas() {
@@ -908,6 +1006,10 @@
                     this.ai.difficulty = parseInt(e.target.value);
                     this.ai.maxDepth = this.ai.difficulty + 1;
                 });
+
+                // 技能按钮事件
+                document.getElementById('skill-doublemove').addEventListener('click', () => this.activateDoubleMove());
+                document.getElementById('skill-swap').addEventListener('click', () => this.activateSwap());
 
                 window.addEventListener('resize', () => {
                     this.initializeCanvas();
@@ -940,11 +1042,36 @@
 
                 const clickedPiece = this.board.getPieceAt(x, y);
 
+                // 换位技能处理
+                if (this.swapMode) {
+                    if (clickedPiece && clickedPiece.color === this.currentPlayer) {
+                        if (!this.swapFirstPiece) {
+                            this.swapFirstPiece = clickedPiece;
+                            this.showMessage('请选择第二个棋子');
+                        } else {
+                            this.executeSwap(this.swapFirstPiece, clickedPiece);
+                            this.swapMode = false;
+                            this.swapFirstPiece = null;
+                            this.draw();
+                            return;
+                        }
+                    }
+                    this.draw();
+                    return;
+                }
+
                 if (this.selectedPiece) {
                     if (this.isValidMoveWithCheck(this.selectedPiece, x, y)) {
                         this.makeMove(this.selectedPiece.x, this.selectedPiece.y, x, y);
                         this.selectedPiece = null;
                         this.draw();
+
+                        // 检查是否是连击技能的额外移动
+                        if (this.extraMove && this.gameState === 'playing') {
+                            this.extraMove = false;
+                            this.showMessage('连击！请继续移动');
+                            return;
+                        }
 
                         if (this.gameState === 'playing') {
                             this.isAIThinking = true;
@@ -990,6 +1117,7 @@
                 this.updateMoveHistory();
                 this.checkGameState();
                 this.currentPlayer = this.getOpponent();
+                this.updateSkillButtons();
             }
 
             makeAIMove() {
@@ -1054,9 +1182,22 @@
                 this.moveHistory = [];
                 this.selectedPiece = null;
                 this.isAIThinking = false;
+
+                // 重置技能系统
+                this.energy = {
+                    [PieceColor.RED]: 3,
+                    [PieceColor.BLACK]: 3
+                };
+                this.activeSkill = null;
+                this.swapMode = false;
+                this.swapFirstPiece = null;
+                this.extraMove = false;
+
                 this.draw();
                 this.updateStatus();
                 this.updateMoveHistory();
+                this.updateEnergyDisplay();
+                this.updateSkillButtons();
             }
 
             draw() {
@@ -1210,8 +1351,15 @@
                     const div = document.createElement('div');
                     div.className = 'move-record';
                     const moveNum = Math.floor(index / 2) + 1;
-                    const color = move.piece.color === PieceColor.RED ? '红' : '黑';
-                    div.textContent = `${moveNum}. ${color} ${move.piece.getName()} (${move.fromX},${move.fromY}) → (${move.toX},${move.toY})`;
+
+                    if (move.type === 'swap') {
+                        const color = move.piece1.color === PieceColor.RED ? '红' : '黑';
+                        div.textContent = `${moveNum}. ${color} 技能: ${move.piece1.getName()} ⟷ ${move.piece2.getName()}`;
+                    } else {
+                        const color = move.piece.color === PieceColor.RED ? '红' : '黑';
+                        div.textContent = `${moveNum}. ${color} ${move.piece.getName()} (${move.fromX},${move.fromY}) → (${move.toX},${move.toY})`;
+                    }
+
                     historyDiv.appendChild(div);
                 });
 
@@ -1229,6 +1377,8 @@
                     turnSpan.textContent = '游戏结束';
                     statusSpan.textContent = this.gameState === 'red_win' ? '红方获胜' : '黑方获胜';
                 }
+
+                this.updateSkillButtons();
             }
 
             showMessage(message) {
@@ -1243,6 +1393,110 @@
 
             getOpponent() {
                 return this.currentPlayer === PieceColor.RED ? PieceColor.BLACK : PieceColor.RED;
+            }
+
+            // 技能系统方法
+            activateDoubleMove() {
+                if (this.currentPlayer !== PieceColor.RED || this.gameState !== 'playing') {
+                    return;
+                }
+
+                if (this.energy[this.currentPlayer] < 2) {
+                    this.showMessage('能量不足！');
+                    return;
+                }
+
+                this.energy[this.currentPlayer] -= 2;
+                this.extraMove = true;
+                this.updateEnergyDisplay();
+                this.updateSkillButtons();
+                this.showMessage('连击技能已激活！本回合可移动两次');
+            }
+
+            activateSwap() {
+                if (this.currentPlayer !== PieceColor.RED || this.gameState !== 'playing') {
+                    return;
+                }
+
+                if (this.energy[this.currentPlayer] < 3) {
+                    this.showMessage('能量不足！');
+                    return;
+                }
+
+                this.swapMode = true;
+                this.selectedPiece = null;
+                this.showMessage('请选择第一个要交换的棋子');
+                this.draw();
+            }
+
+            executeSwap(piece1, piece2) {
+                if (piece1 === piece2) {
+                    this.showMessage('不能选择同一个棋子！');
+                    return;
+                }
+
+                const x1 = piece1.x;
+                const y1 = piece1.y;
+                const x2 = piece2.x;
+                const y2 = piece2.y;
+
+                piece1.x = x2;
+                piece1.y = y2;
+                piece2.x = x1;
+                piece2.y = y1;
+
+                this.energy[this.currentPlayer] -= 3;
+                this.updateEnergyDisplay();
+                this.updateSkillButtons();
+
+                this.moveHistory.push({
+                    type: 'swap',
+                    piece1: piece1.clone(),
+                    piece2: piece2.clone()
+                });
+
+                this.updateMoveHistory();
+                this.showMessage('换位成功！');
+                this.endTurn();
+            }
+
+            endTurn() {
+                this.currentPlayer = this.getOpponent();
+                this.updateStatus();
+
+                if (this.currentPlayer === PieceColor.BLACK && this.gameState === 'playing') {
+                    this.isAIThinking = true;
+                    this.updateStatus();
+                    setTimeout(() => this.makeAIMove(), 100);
+                }
+            }
+
+            updateEnergyDisplay() {
+                document.getElementById('red-energy').textContent = this.energy[PieceColor.RED];
+                document.getElementById('black-energy').textContent = this.energy[PieceColor.BLACK];
+            }
+
+            updateSkillButtons() {
+                const isPlayerTurn = this.currentPlayer === PieceColor.RED && this.gameState === 'playing';
+                const energy = this.energy[PieceColor.RED];
+
+                const doubleMoveBtn = document.getElementById('skill-doublemove');
+                const swapBtn = document.getElementById('skill-swap');
+
+                doubleMoveBtn.disabled = !isPlayerTurn || energy < 2;
+                swapBtn.disabled = !isPlayerTurn || energy < 3;
+
+                if (this.extraMove) {
+                    doubleMoveBtn.classList.add('active');
+                } else {
+                    doubleMoveBtn.classList.remove('active');
+                }
+
+                if (this.swapMode) {
+                    swapBtn.classList.add('active');
+                } else {
+                    swapBtn.classList.remove('active');
+                }
             }
         }
 
