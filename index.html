@@ -1143,6 +1143,19 @@
             checkGameState() {
                 const opponent = this.getOpponent();
 
+                // 检查对方将/帅是否还在棋盘上
+                const opponentKing = this.board.pieces.find(
+                    p => p.type === PieceType.KING && p.color === opponent
+                );
+
+                if (!opponentKing) {
+                    // 对方将/帅被吃掉，当前方获胜
+                    this.gameState = this.currentPlayer === PieceColor.RED ? 'red_win' : 'black_win';
+                    this.showMessage(`${this.currentPlayer === PieceColor.RED ? '红方' : '黑方'}获胜！`);
+                    this.updateStatus();
+                    return;
+                }
+
                 if (CheckDetector.isCheckmate(this.board, opponent)) {
                     this.gameState = this.currentPlayer === PieceColor.RED ? 'red_win' : 'black_win';
                     this.showMessage(`${this.currentPlayer === PieceColor.RED ? '红方' : '黑方'}获胜！`);
